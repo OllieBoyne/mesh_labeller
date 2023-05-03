@@ -3,6 +3,7 @@ import numpy as np
 import trimesh
 from mesh_labeller.geometry import DrawableMesh, IcoSphere
 from mesh_labeller.texture import Paint
+from mesh_labeller.trackball import Trackball
 
 from pyrender.constants import TextAlign
 
@@ -53,6 +54,17 @@ class Viewer(pyrender.Viewer):
 						 use_raymond_lighting=True,
 						 auto_start=False, viewport_size=viewport_size)
 
+	def _reset_view(self):
+		"""Override with custom trackball"""
+		scale = self.scene.scale
+		if scale == 0.0:
+			scale = 2.0
+		centroid = self.scene.centroid
+
+		self._trackball = Trackball(
+			self._default_camera_pose, self.viewport_size, scale, centroid
+		)
+
 	def on_draw(self):
 		self.update_captions()
 		super().on_draw()
@@ -81,8 +93,11 @@ class Viewer(pyrender.Viewer):
 			super().on_mouse_drag(x, y, dx, dy, buttons, modifiers)
 
 	def on_mouse_motion(self, x, y, dx, dy):
+		"""Try to project a ray from camera to mouse on mesh.
+		If collides, move cursor to collision point."""
 		proj_3d = self.project_to_mesh(x, y)
 		if proj_3d is not None:
+			self._trackball._target = proj_3d
 			self.circle_node.translation = proj_3d
 
 	def on_mouse_scroll(self, x, y, dx, dy):

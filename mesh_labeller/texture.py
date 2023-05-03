@@ -47,7 +47,7 @@ class Paint:
 
 class Texture:
 	def __init__(self, H, W, dtype=np.uint8, base_colour=(0, 0, 0),
-				 UNDO_HISTORY=20, target=None):
+				 UNDO_HISTORY=10, target=None):
 		self.H = H
 		self.W = W
 		self.dtype = dtype
