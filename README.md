@@ -6,6 +6,8 @@ Features:
 
 INSTALLATION
 
+```python setup.py develop install```
+
 - Pyembree may need specific installation
 
 On Apple Silicon:

@@ -1,5 +1,6 @@
 
 default_class: FOOT # Default for anything not labelled
+default_mesh_loc: D:\OneDrive - University of Cambridge\Foot3D-Dataset\Meshes_with_leg_processed # Path to the folder containing the meshes
 
 classes: # [id] CLASS_NAME: COL [RGB/255]
   FOOT: [0, 128, 0]

@@ -24,6 +24,10 @@ cdef int is_inside(DTYPE32_t[:, :] tri, int x, int y) nogil:
 	cdef float p2y = tri[2,1]
 
 	cdef float area = (-p1y * p2x + p0y * (-p1x + p2x) + p0x * (p1y - p2y) + p1x * p2y)
+
+	if area == 0:
+		return 0
+
 	cdef float s = (p0y * p2x - p0x * p2y + (p2y - p0y) * x + (p0x - p2x) * y) / area
 	cdef float t = (p0x * p1y - p0y * p1x + (p0y - p1y) * x + (p1x - p0x) * y) / area
 

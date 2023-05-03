@@ -1,3 +1,5 @@
+import os
+
 import pyrender
 import numpy as np
 import trimesh
@@ -6,6 +8,7 @@ from mesh_labeller.texture import Paint
 from mesh_labeller.trackball import Trackball
 
 from pyrender.constants import TextAlign
+from tkinter import Tk, filedialog as filedialog
 
 import pyglet
 is_ctrl = lambda symbol: symbol == pyglet.window.key.LCTRL or symbol == pyglet.window.key.RCTRL
@@ -14,13 +17,19 @@ is_command = lambda symbol: symbol == pyglet.window.key.LCOMMAND or symbol == py
 
 class Viewer(pyrender.Viewer):
 	scroll_mode = 'cursor'
+
 	CIRCLE_RADIUS_DEFAULT = 0.01
+	CIRCLE_RADIUS_STEP = 0.001  # change in radius per scroll tick
+
 	CIRCLE_DEFAULT_ALPHA = 0.5
 	CIRCLE_PDOWN_ALPHA = 0.1
 
+	CAM_TRANSLATE_PAD = 0.25  # fraction of viewport size where the camera will pan if the mouse is in that region
+	CAM_TRANSLATE_SPEED = 15.0  # Speed of sideways pan
+
 	def __init__(self, cfg, viewport_size=500, *args, **kwargs):
 
-		scene = pyrender.Scene()
+		self._scene = scene = pyrender.Scene()
 
 		camera = pyrender.camera.PerspectiveCamera(yfov=1.0, aspectRatio=1.0, znear=0.001)
 		pose = np.eye(4)
@@ -28,15 +37,11 @@ class Viewer(pyrender.Viewer):
 		scene.add(camera, pose=pose)
 
 		# Load classes
+		self.cfg = cfg
 		self.labeller = Paint(cfg['classes'])
-		default_colour = self.labeller[cfg['default_class']].rgb
 
-		# load obj
-		mesh = trimesh.load('test/mesh_w_uv.obj')
-		mat = pyrender.material.MetallicRoughnessMaterial()
-		mesh = DrawableMesh.from_trimesh(mesh, material=mat, base_colour=default_colour)
-		self.mesh = mesh
-		self.mesh_node = scene.add(mesh)
+		self.mesh, self.mesh_node = None, None
+		self.load_mesh()
 
 		self.cursor_radius = self.CIRCLE_RADIUS_DEFAULT
 
@@ -54,6 +59,30 @@ class Viewer(pyrender.Viewer):
 						 use_raymond_lighting=True,
 						 auto_start=False, viewport_size=viewport_size)
 
+	def load_mesh(self, loc=None):
+
+		if self.mesh_node is not None:
+			self.scene.remove_node(self.mesh_node)
+
+		self.obj_loc = loc
+		if self.obj_loc is None:
+			self.obj_loc = self.open_file(default_loc = self.cfg['default_mesh_loc'],
+										  filetypes=[('Wavefront OBJ', '*.obj')], descr='Select mesh file')
+
+		# load obj
+		mesh = trimesh.load(self.obj_loc)
+		mat = pyrender.material.MetallicRoughnessMaterial()
+		mesh = DrawableMesh.from_trimesh(mesh, material=mat, base_colour= self.labeller[self.cfg['default_class']].rgb)
+		self.mesh = mesh
+		self.mesh_node = self.scene.add(mesh)
+
+	def open_file(self, default_loc=os.getcwd(), filetypes=None, descr='Select file'):
+
+		return filedialog.askopenfilename(
+			initialdir=default_loc, title=descr,
+			filetypes=filetypes
+		)
+
 	def _reset_view(self):
 		"""Override with custom trackball"""
 		scale = self.scene.scale
@@ -66,6 +95,9 @@ class Viewer(pyrender.Viewer):
 		)
 
 	def on_draw(self):
+		if self.scroll_mode == 'pan':
+			self.side_pan()
+
 		self.update_captions()
 		super().on_draw()
 
@@ -97,13 +129,14 @@ class Viewer(pyrender.Viewer):
 		If collides, move cursor to collision point."""
 		proj_3d = self.project_to_mesh(x, y)
 		if proj_3d is not None:
+			self._trackball._n_target = proj_3d
 			self._trackball._target = proj_3d
 			self.circle_node.translation = proj_3d
 
 	def on_mouse_scroll(self, x, y, dx, dy):
 
 		if self.scroll_mode == 'cursor':
-			self.cursor_radius += dy * 0.01
+			self.cursor_radius += dy * self.CIRCLE_RADIUS_STEP
 			self.cursor_radius = np.clip(self.cursor_radius, 0.002, 0.1)
 			s = self.cursor_radius / self.CIRCLE_RADIUS_DEFAULT
 			self.circle_node.scale = (s, s, s)
@@ -115,9 +148,17 @@ class Viewer(pyrender.Viewer):
 		if is_ctrl(symbol) or is_command(symbol):
 			self.scroll_mode = 'camera'
 
+		if symbol == pyglet.window.key.P:
+			self.scroll_mode = 'pan'
+
 		if symbol == pyglet.window.key.S:
-			self.mesh.texture.save('tex.png')
-			print("Saved texture to tex.png")
+			# Save texture as 'label_tex.png' in same folder as obj
+			loc = os.path.join(os.path.dirname(self.obj_loc), 'label_tex.png')
+			self.mesh.texture.save(loc)
+			print(f"Saved texture to {loc}")
+
+		if symbol == pyglet.window.key.O:
+			self.load_mesh()
 
 		if symbol == pyglet.window.key.COMMA:
 			self.labeller.cycle_down()
@@ -129,8 +170,7 @@ class Viewer(pyrender.Viewer):
 			self.mesh.texture.undo() # undo last draw action
 
 	def on_key_release(self, symbol, modifiers):
-		if is_ctrl(symbol) or is_command(symbol):
-			self.scroll_mode = 'cursor' # revert back to cursor scroll mode
+		self.scroll_mode = 'cursor' # revert back to cursor scroll mode
 
 	@property
 	def cam_pose(self):
@@ -186,6 +226,22 @@ class Viewer(pyrender.Viewer):
 
 		else:
 			return intersect_loc[0]
+
+	def side_pan(self):
+		"""If mouse is near edge of screen, pan camera in that direction"""
+
+		x, y = self._mouse_x, self._mouse_y
+		x_pan_val = min(x, (self.W - x)) / self.W
+		y_pan_val = min(y, (self.H - y)) / self.H
+
+		x_pan, y_pan = 0, 0
+		if x_pan_val < self.CAM_TRANSLATE_PAD:
+			x_pan = [1, -1][x>self.W/2] * x_pan_val * self.CAM_TRANSLATE_SPEED
+
+		if y_pan_val < self.CAM_TRANSLATE_PAD:
+			y_pan = [1, -1][y>self.H/2] * y_pan_val * self.CAM_TRANSLATE_SPEED
+
+		self._trackball.pan(x_pan, y_pan)
 
 	def update_captions(self):
 		"""Set caption to show current scroll mode, as well as current class"""
