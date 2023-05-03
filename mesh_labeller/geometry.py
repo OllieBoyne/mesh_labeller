@@ -22,8 +22,9 @@ class DrawableMesh(pyrender.Mesh):
 				 base_colour=(0, 0, 0)):
 		self.intersector = intersector
 
-		self.texture = Texture(1024, 1024, base_colour=base_colour)
 		super().__init__(primitives, is_visible=is_visible)
+
+		self.texture = Texture(1024, 1024, base_colour=base_colour, target=self)
 		self.draw_tex()
 
 	def intersects(self, ray_origins, ray_directions):
@@ -48,9 +49,7 @@ class DrawableMesh(pyrender.Mesh):
 
 	def draw_tex(self):
 		"""Draw texture on mesh"""
-		size = self.texture.H
-		self.tex = pyrender.Texture(name='tex', width=size, height=size, source=self.texture.data, source_channels='RGB')
-		self.primitives[0].material.baseColorTexture = self.tex
+		self.texture.draw()
 
 	def draw_triangles(self, triangles, colour=(1,0,0), fmt='UV'):
 		"""Draw a series of triangles to the UV map.
@@ -67,27 +66,6 @@ class DrawableMesh(pyrender.Mesh):
 		# Seams in UV map will appear as gaps in the mask, so dilate the mask to fill them in
 		mask = rasterize_tris(triangles, size, method='per-triangle', dilation=1)
 		self.texture.color_mask(mask, colour)
-
-		self.draw_tex()
-
-	def draw(self, pts, colour=(1, 0, 0), fmt='UV'):
-		"""For all points in (N x 2) pts, draw colour onto the UV map at those points.
-		fmt='UV': pts are in UV coordinates (0-1)
-		fmt='pixel': pts are in pixel coordinates (0-width, 0-height)"""
-
-		source = self.primitives[0].material.baseColorTexture.source.copy()
-		size, *_ = source.shape
-
-
-		if fmt == 'UV':
-			pts = np.clip((pts * size).astype(int), 0, size-1)
-			pts[..., 1] = (size-1) - pts[..., 1]
-
-		source[pts[..., 1], pts[..., 0]] = colour
-
-		self.tex = pyrender.Texture(name='tex', width=size, height=size, source=source,
-								 source_channels='RGB')
-		self.primitives[0].material = pyrender.material.MetallicRoughnessMaterial(baseColorTexture=self.tex)
 
 
 	def draw_from_sphere(self, sphere_centre, sphere_radius, status=(1, 0, 0)):

@@ -9,4 +9,6 @@ if __name__ == '__main__':
 		cfg = yaml.load(infile, Loader=yaml.FullLoader)
 
 	viewer = Viewer(cfg=cfg,
-					viewport_size=viewport_size, show_world_axis=True)
+					viewport_size=viewport_size,
+					show_world_axis=True,
+					window_title='Mesh Labeller')

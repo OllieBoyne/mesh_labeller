@@ -4,9 +4,11 @@ import trimesh
 from mesh_labeller.geometry import DrawableMesh, IcoSphere
 from mesh_labeller.texture import Paint
 
+from pyrender.constants import TextAlign
+
 import pyglet
-is_ctrl = lambda symbol: pyglet.window.key.LCTRL or symbol == pyglet.window.key.RCTRL
-is_command = lambda symbol: pyglet.window.key.LCOMMAND or symbol == pyglet.window.key.RCOMMAND
+is_ctrl = lambda symbol: symbol == pyglet.window.key.LCTRL or symbol == pyglet.window.key.RCTRL
+is_command = lambda symbol: symbol == pyglet.window.key.LCOMMAND or symbol == pyglet.window.key.RCOMMAND
 
 
 class Viewer(pyrender.Viewer):
@@ -25,8 +27,8 @@ class Viewer(pyrender.Viewer):
 		scene.add(camera, pose=pose)
 
 		# Load classes
-		self.paint = Paint(cfg['classes'])
-		default_colour = self.paint[cfg['default_class']].rgb
+		self.labeller = Paint(cfg['classes'])
+		default_colour = self.labeller[cfg['default_class']].rgb
 
 		# load obj
 		mesh = trimesh.load('test/mesh_w_uv.obj')
@@ -46,15 +48,20 @@ class Viewer(pyrender.Viewer):
 
 		self.H, self.W = viewport_size
 
+
 		super().__init__(scene, *args, **kwargs, run_in_thread=False,
 						 use_raymond_lighting=True,
 						 auto_start=False, viewport_size=viewport_size)
 
+	def on_draw(self):
+		self.update_captions()
+		super().on_draw()
 
 	def on_mouse_press(self, x, y, buttons, modifiers):
 
 		if self.scroll_mode == 'cursor' and buttons == pyglet.window.mouse.LEFT:
-			self.mesh.draw_from_sphere(self.circle_node.translation, self.cursor_radius, status=(255, 0, 0))
+			self.mesh.draw_from_sphere(self.circle_node.translation, self.cursor_radius,
+									   status=self.labeller.rgb)
 			self.circle.set_alpha(self.CIRCLE_PDOWN_ALPHA)
 		else:
 			super().on_mouse_press(x, y, buttons, modifiers)
@@ -67,7 +74,8 @@ class Viewer(pyrender.Viewer):
 
 	def on_mouse_drag(self, x, y, dx, dy, buttons, modifiers):
 		if self.scroll_mode == 'cursor' and buttons == pyglet.window.mouse.LEFT:
-			self.mesh.draw_from_sphere(self.circle_node.translation, self.cursor_radius, status=(255, 0, 0))
+			self.mesh.draw_from_sphere(self.circle_node.translation, self.cursor_radius,
+									   status=self.labeller.rgb)
 			self.on_mouse_motion(x, y, dx, dy)
 		else:
 			super().on_mouse_drag(x, y, dx, dy, buttons, modifiers)
@@ -95,6 +103,15 @@ class Viewer(pyrender.Viewer):
 		if symbol == pyglet.window.key.S:
 			self.mesh.texture.save('tex.png')
 			print("Saved texture to tex.png")
+
+		if symbol == pyglet.window.key.COMMA:
+			self.labeller.cycle_down()
+
+		if symbol == pyglet.window.key.PERIOD:
+			self.labeller.cycle_up()
+
+		if symbol == pyglet.window.key.Z:
+			self.mesh.texture.undo() # undo last draw action
 
 	def on_key_release(self, symbol, modifiers):
 		if is_ctrl(symbol) or is_command(symbol):
@@ -155,4 +172,14 @@ class Viewer(pyrender.Viewer):
 		else:
 			return intersect_loc[0]
 
+	def update_captions(self):
+		"""Set caption to show current scroll mode, as well as current class"""
+		captions = []
+		captions.append(dict(location=TextAlign.BOTTOM_LEFT, text=f"[{self.scroll_mode.title()}]",
+							 font_name='OpenSans-Regular', font_pt=30, color=(0, 0, 0), scale=1.0))
 
+
+		captions.append(dict(location=TextAlign.BOTTOM_RIGHT, text="[{L.ID}] {L.name}".format(L=self.labeller),
+							 font_name='OpenSans-Regular', font_pt=30, color=self.labeller.rgb, scale=1.0))
+
+		self.viewer_flags['caption'] = captions
