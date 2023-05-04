@@ -16,7 +16,7 @@ This loads the settings defined in `cfgs/default.yaml` - edit this or create you
 
 ## Controls
 
-####Mouse
+#### Mouse
 
  Movement     | Response 
  ---          | --- 
@@ -26,7 +26,7 @@ This loads the settings defined in `cfgs/default.yaml` - edit this or create you
  Scroll | Change target size OR (if CTRL pressed) Zoom in/out to target 
 
 
-####Keyboard
+#### Keyboard
 
 Key | Action
 --- | ---
