@@ -49,4 +49,4 @@ Key | Action
 
 Tested on Windows 10, MacOS 13.1 [^1].
 
-[^1]: See [`docs/mac_install.md`](mesh_labeller/docs/mac_install.md) for details of installation on Apple Silicon.
+[^1]: See [`docs/mac_install.md`](mesh_labeller/blob/master/docs/mac_install.md) for details of installation on Apple Silicon.
