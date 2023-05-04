@@ -33,7 +33,7 @@ Key | Action
 `0-9` | Select class
 `>` | Next class
 `<` | Previous class
-`CTRL`/`⌘` | While held, Scroll to zoom
+`CTRL`/`⌘` | While held, scroll to zoom
 `S` | Save label map as `.png`
 `O` | Open new `.obj` file
 `Z` | Undo last paint
@@ -49,4 +49,4 @@ Key | Action
 
 Tested on Windows 10, MacOS 13.1 [^1].
 
-[^1]: See [`docs/mac_install.md`](docs/mac_install.md) for details of installation on Apple Silicon.
+[^1]: See [`docs/mac_install.md`](mesh_labeller/docs/mac_install.md) for details of installation on Apple Silicon.
