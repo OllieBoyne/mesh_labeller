@@ -3,7 +3,10 @@
 A tool for labelling 3D meshes. You define custom classes, load an OBJ file, and 'paint' each class onto the mesh.
 The result is an output PNG texture which can be used as a label map for the mesh.
 
-<img src="/docs/recording.gif" width="50%"/> <img src="/docs/render.gif" width="50%"/>
+
+<p float="left">
+<img src="/docs/recording.gif" width="45%"/> <img src="/docs/render.gif" width="45%"/>
+<p>
 
 ## Usage
 
