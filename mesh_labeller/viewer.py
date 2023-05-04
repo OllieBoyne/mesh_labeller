@@ -233,6 +233,14 @@ class Viewer(pyrender.Viewer):
 	def on_key_release(self, symbol, modifiers):
 		self.mouse_mode = 'cursor' # revert back to cursor scroll mode
 
+	def on_resize(self, width, height):
+		self.H = height
+		self.W = width
+		if self.cam is not None:
+			self.scene.main_camera_node.camera.aspectRatio = (width/height)
+
+		super().on_resize(width, height)
+
 	@property
 	def cam_pose(self):
 		pose = self._trackball.pose.copy()
@@ -246,8 +254,9 @@ class Viewer(pyrender.Viewer):
 	@property
 	def cam_NDC_matrix(self):
 		f = 1 / (2 * np.tan(self.cam.yfov / 2.0))
+		ar = self.W / self.H
 		K = np.eye(4)
-		K[0, 0] = f
+		K[0, 0] = f / ar
 		K[1, 1] = f
 
 		return K
