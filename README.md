@@ -43,10 +43,12 @@ Key | Action
 
 ## Contribution
 
+This tool was made for a specific niche purpose - but could always use additional features. Please make a pull request if you'd like to add a new feature.
+
 ## Installation
 
 ```python setup.py install```
 
-Tested on Windows 10, MacOS 13.1 [^1].
+Tested on Windows 10, MacOS 13.1[^1].
 
 [^1]: See [`docs/mac_install.md`](mesh_labeller/blob/master/docs/mac_install.md) for details of installation on Apple Silicon.
