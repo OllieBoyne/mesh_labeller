@@ -7,6 +7,8 @@ def sign(x):
 	return 1 if x >= 0 else -1
 
 class Trackball(PyrenderTrackball):
+	MAX_RADIUS_ZOOM = 3
+
 	def scroll(self, clicks):
 		"""Zoom in to `target` based on clicks"""
 		target = self._target
@@ -20,6 +22,11 @@ class Trackball(PyrenderTrackball):
 
 		eye = self._n_pose[:3, 3].flatten()
 		radius = np.linalg.norm(eye - target)
+
+		# Prevent zooming out too far
+		if radius > self.MAX_RADIUS_ZOOM and clicks > 0:
+			return
+
 		scroll_direction = (target - eye) # direction to move in
 		translation = (mult * radius - radius) * scroll_direction
 		t_tf = np.eye(4)

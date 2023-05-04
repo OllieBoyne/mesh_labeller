@@ -1,25 +1,49 @@
-Tool for labelling 3D meshes.
+## MeshLabeller
 
-Features:
+A tool for labelling 3D meshes. You define custom classes, load an OBJ file, and 'paint' each class onto the mesh.
+The result is an output PNG texture which can be used as a label map for the mesh.
 
-- Part labelling
+<img src="/docs/recording.gif" width="50%"/> <img src="/docs/render.gif" width="50%"/>
 
-INSTALLATION
+## Usage
 
-```python setup.py develop install```
+```python main.py```
 
-- Pyembree may need specific installation
+This loads the settings defined in `cfgs/default.yaml` - edit this or create your own with custom classes.
 
-On Apple Silicon:
-- Pyembree not supported for Apple silicon, so need to use [the following workaround](https://towardsdatascience.com/how-to-manage-conda-environments-on-an-apple-silicon-m1-mac-1e29cb3bad12):
-```
-CONDA_SUBDIR=osx-64 conda create -n myenv_x86 python=3.9
-conda activate myenv_x86
-conda config --env --set subdir osx-64
-conda install -c conda-forge pyembree
-```
+## Controls
 
-- Then, may say 'libembree.2.dylib' is missing. If so:
-    * Download [.dylibs](https://github.com/embree/embree/releases/download/v2.7.0/embree-2.7.0.x86_64.macosx.tar.gz)
-    * Copy the .dylib files to /venv/lib/...
-    * Try opening them. If needed, go to Settings > Privacy and Security > Click 'allow' for each one
+####Mouse
+
+ Movement     | Response 
+ ---          | --- 
+ Left click   | Paint at target 
+ Middle click | Pan camera about target 
+ Right click  | Rotate camera about target 
+ Scroll | Change target size OR (if CTRL pressed) Zoom in/out to target 
+
+
+####Keyboard
+
+Key | Action
+--- | ---
+`0-9` | Select class
+`>` | Next class
+`<` | Previous class
+`CTRL`/`⌘` | While held, Scroll to zoom
+`S` | Save label map as `.png`
+`O` | Open new `.obj` file
+`Z` | Undo last paint
+`P` | Use mouse pan mode
+`R` | Start recording / Save recording as `.gif`
+
+
+## Contribution
+
+## Installation
+
+```python setup.py install```
+
+Tested on Windows 10, MacOS 13.1 [^1].
+
+[^1]: See [`docs/mac_install.md`](docs/mac_install.md) for details of installation on Apple Silicon.

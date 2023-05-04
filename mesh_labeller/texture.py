@@ -8,7 +8,7 @@ class Paint:
 	def __init__(self, cfg):
 		"""cfg: dict of class: (r, g, b)"""
 		self.cfg = cfg
-		self.categories =  []
+		self.categories = []
 		for n, (name, rgb) in enumerate(cfg.items()):
 			self.categories.append(Category(ID=n, name=name, rgb=rgb))
 
@@ -19,6 +19,9 @@ class Paint:
 
 	def cycle_down(self):
 		self.current_cat = (self.current_cat - 1) % len(self.categories)
+
+	def set_class(self, ID):
+		self.current_cat = ID
 
 	@property
 	def rgb(self):
@@ -47,12 +50,17 @@ class Paint:
 
 class Texture:
 	def __init__(self, H, W, dtype=np.uint8, base_colour=(0, 0, 0),
-				 UNDO_HISTORY=10, target=None):
+				 UNDO_HISTORY=10, target=None, loc=None):
 		self.H = H
 		self.W = W
 		self.dtype = dtype
+
 		self.data = np.zeros((H, W, 3), dtype=dtype)
 		self.data[:] = base_colour
+
+		if loc is not None:
+			self.data = cv2.cvtColor(cv2.imread(loc), cv2.COLOR_BGR2RGB).astype(dtype)
+
 		self.target = target
 
 		self.UNDO_HISTORY = UNDO_HISTORY

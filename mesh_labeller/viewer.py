@@ -9,14 +9,18 @@ from mesh_labeller.trackball import Trackball
 
 from pyrender.constants import TextAlign
 from tkinter import Tk, filedialog as filedialog
+import imageio
 
 import pyglet
 is_ctrl = lambda symbol: symbol == pyglet.window.key.LCTRL or symbol == pyglet.window.key.RCTRL
 is_command = lambda symbol: symbol == pyglet.window.key.LCOMMAND or symbol == pyglet.window.key.RCOMMAND
 
+# Save texture as 'label_tex.png' in same folder as obj
+def obj_loc_to_tex_loc(obj_loc):
+	return os.path.join(os.path.dirname(obj_loc), 'label_tex.png')
 
 class Viewer(pyrender.Viewer):
-	scroll_mode = 'cursor'
+	mouse_mode = 'cursor'
 
 	CIRCLE_RADIUS_DEFAULT = 0.01
 	CIRCLE_RADIUS_STEP = 0.001  # change in radius per scroll tick
@@ -27,7 +31,13 @@ class Viewer(pyrender.Viewer):
 	CAM_TRANSLATE_PAD = 0.25  # fraction of viewport size where the camera will pan if the mouse is in that region
 	CAM_TRANSLATE_SPEED = 15.0  # Speed of sideways pan
 
+	SCALE_OBJ = 0.3  # scale object so largest extent is this size
+
 	def __init__(self, cfg, viewport_size=500, *args, **kwargs):
+
+		# Set cursor to crosshair
+		self._view_hwnd = None
+		self.set_mouse_cursor(self.get_system_mouse_cursor(self.CURSOR_CROSSHAIR))
 
 		self._scene = scene = pyrender.Scene()
 
@@ -38,10 +48,19 @@ class Viewer(pyrender.Viewer):
 
 		# Load classes
 		self.cfg = cfg
-		self.labeller = Paint(cfg['classes'])
+		self.labeller = Paint(cfg['CLASSES'])
+		self.labeller.cycle_up()
 
 		self.mesh, self.mesh_node = None, None
-		self.load_mesh()
+
+		loc = None
+		if cfg['DEFAULT_FILE'] is not None:
+			loc = os.path.join(cfg['DEFAULT_MESH_LOC'], cfg['DEFAULT_FILE'])
+			if not os.path.isfile(loc):
+				print(f'Default file {loc} does not exist, defaulting to file dialog...')
+				loc = None
+
+		self.load_mesh(loc)
 
 		self.cursor_radius = self.CIRCLE_RADIUS_DEFAULT
 
@@ -66,13 +85,21 @@ class Viewer(pyrender.Viewer):
 
 		self.obj_loc = loc
 		if self.obj_loc is None:
-			self.obj_loc = self.open_file(default_loc = self.cfg['default_mesh_loc'],
+			self.obj_loc = self.open_file(default_loc = self.cfg['DEFAULT_MESH_LOC'],
 										  filetypes=[('Wavefront OBJ', '*.obj')], descr='Select mesh file')
 
-		# load obj
+		# try to load texture from same directory
+		tex_loc = obj_loc_to_tex_loc(self.obj_loc)
+		if not os.path.isfile(tex_loc):
+			tex_loc = None
+
 		mesh = trimesh.load(self.obj_loc)
+		mesh = mesh.apply_scale(self.SCALE_OBJ / mesh.bounding_box.extents.max()) # resize to match bounds
+
 		mat = pyrender.material.MetallicRoughnessMaterial()
-		mesh = DrawableMesh.from_trimesh(mesh, material=mat, base_colour= self.labeller[self.cfg['default_class']].rgb)
+		mesh = DrawableMesh.from_trimesh(mesh, material=mat, base_colour=self.labeller[self.cfg['DEFAULT_CLASS']].rgb,
+										 tex_loc=tex_loc, dilation=self.cfg['SETTINGS']['DILATION'],
+										 tex_size = self.cfg['SETTINGS']['TEXTURE_SIZE'])
 		self.mesh = mesh
 		self.mesh_node = self.scene.add(mesh)
 
@@ -95,7 +122,7 @@ class Viewer(pyrender.Viewer):
 		)
 
 	def on_draw(self):
-		if self.scroll_mode == 'pan':
+		if self.mouse_mode == 'mouse-pan':
 			self.side_pan()
 
 		self.update_captions()
@@ -103,26 +130,44 @@ class Viewer(pyrender.Viewer):
 
 	def on_mouse_press(self, x, y, buttons, modifiers):
 
-		if self.scroll_mode == 'cursor' and buttons == pyglet.window.mouse.LEFT:
+		self._trackball.down(np.array([x, y]))
+		self.viewer_flags['mouse_pressed'] = True 		# Stop animating while using the mouse
+
+		# if middle mouse button, pan
+		if buttons == pyglet.window.mouse.MIDDLE:
+			self.mouse_mode = 'scroll-pan'
+
+		# if right mouse button, camera rotate
+		elif buttons == pyglet.window.mouse.RIGHT:
+			self.mouse_mode = 'camera-rotate'
+
+		elif self.mouse_mode == 'cursor' and buttons == pyglet.window.mouse.LEFT:
 			self.mesh.draw_from_sphere(self.circle_node.translation, self.cursor_radius,
 									   status=self.labeller.rgb)
 			self.circle.set_alpha(self.CIRCLE_PDOWN_ALPHA)
-		else:
-			super().on_mouse_press(x, y, buttons, modifiers)
 
 	def on_mouse_release(self, x, y, button, modifiers):
+
+		self.mouse_mode = 'cursor' # always set mouse mode back to cursor
 		if button == pyglet.window.mouse.LEFT:
 			self.circle.set_alpha(self.CIRCLE_DEFAULT_ALPHA)
 		else:
 			super().on_mouse_release(x, y, button, modifiers)
 
 	def on_mouse_drag(self, x, y, dx, dy, buttons, modifiers):
-		if self.scroll_mode == 'cursor' and buttons == pyglet.window.mouse.LEFT:
+
+		# if middle mouse button, pan
+		if self.mouse_mode == 'scroll-pan':
+			self._trackball.pan(dx, dy)
+
+		# if middle mouse button, rotate
+		if self.mouse_mode == 'camera-rotate':
+			self._trackball.drag(np.array([x, y]))
+
+		if self.mouse_mode == 'cursor' and buttons == pyglet.window.mouse.LEFT:
 			self.mesh.draw_from_sphere(self.circle_node.translation, self.cursor_radius,
 									   status=self.labeller.rgb)
 			self.on_mouse_motion(x, y, dx, dy)
-		else:
-			super().on_mouse_drag(x, y, dx, dy, buttons, modifiers)
 
 	def on_mouse_motion(self, x, y, dx, dy):
 		"""Try to project a ray from camera to mouse on mesh.
@@ -135,42 +180,58 @@ class Viewer(pyrender.Viewer):
 
 	def on_mouse_scroll(self, x, y, dx, dy):
 
-		if self.scroll_mode == 'cursor':
+		if self.mouse_mode == 'cursor':
 			self.cursor_radius += dy * self.CIRCLE_RADIUS_STEP
 			self.cursor_radius = np.clip(self.cursor_radius, 0.002, 0.1)
 			s = self.cursor_radius / self.CIRCLE_RADIUS_DEFAULT
 			self.circle_node.scale = (s, s, s)
 
-		elif self.scroll_mode == 'camera':
+		elif self.mouse_mode == 'camera':
 			super().on_mouse_scroll(x, y, dx, dy)
 
 	def on_key_press(self, symbol, modifiers):
 		if is_ctrl(symbol) or is_command(symbol):
-			self.scroll_mode = 'camera'
+			self.mouse_mode = 'camera'
 
-		if symbol == pyglet.window.key.P:
-			self.scroll_mode = 'pan'
+		elif symbol == pyglet.window.key.P:
+			self.mouse_mode = 'mouse-pan'
 
-		if symbol == pyglet.window.key.S:
+		elif symbol == pyglet.window.key.S:
 			# Save texture as 'label_tex.png' in same folder as obj
-			loc = os.path.join(os.path.dirname(self.obj_loc), 'label_tex.png')
+			loc = obj_loc_to_tex_loc(self.obj_loc)
 			self.mesh.texture.save(loc)
 			print(f"Saved texture to {loc}")
 
-		if symbol == pyglet.window.key.O:
+		elif symbol == pyglet.window.key.O:
 			self.load_mesh()
 
-		if symbol == pyglet.window.key.COMMA:
+		elif symbol == pyglet.window.key.COMMA:
 			self.labeller.cycle_down()
 
-		if symbol == pyglet.window.key.PERIOD:
+		elif symbol == pyglet.window.key.PERIOD:
 			self.labeller.cycle_up()
 
-		if symbol == pyglet.window.key.Z:
-			self.mesh.texture.undo() # undo last draw action
+		elif symbol == pyglet.window.key.Z:
+			self.mesh.texture.undo()  # undo last draw action
+
+		# R starts recording frames
+		elif symbol == pyglet.window.key.R:
+			if self.viewer_flags['record']:
+				self.save_gif()
+				self.set_caption(self.viewer_flags['window_title'])
+			else:
+				self.set_caption(
+					'{} (RECORDING)'.format(self.viewer_flags['window_title'])
+				)
+			self.viewer_flags['record'] = not self.viewer_flags['record']
+
+		# if a number 0 - 9 pressed, cycle to that class
+		elif symbol in range(48, 58):
+			ID = symbol - 48
+			self.labeller.set_class(ID)
 
 	def on_key_release(self, symbol, modifiers):
-		self.scroll_mode = 'cursor' # revert back to cursor scroll mode
+		self.mouse_mode = 'cursor' # revert back to cursor scroll mode
 
 	@property
 	def cam_pose(self):
@@ -246,7 +307,7 @@ class Viewer(pyrender.Viewer):
 	def update_captions(self):
 		"""Set caption to show current scroll mode, as well as current class"""
 		captions = []
-		captions.append(dict(location=TextAlign.BOTTOM_LEFT, text=f"[{self.scroll_mode.title()}]",
+		captions.append(dict(location=TextAlign.BOTTOM_LEFT, text=f"[{self.mouse_mode.title()}]",
 							 font_name='OpenSans-Regular', font_pt=30, color=(0, 0, 0), scale=1.0))
 
 
@@ -254,3 +315,17 @@ class Viewer(pyrender.Viewer):
 							 font_name='OpenSans-Regular', font_pt=30, color=self.labeller.rgb, scale=1.0))
 
 		self.viewer_flags['caption'] = captions
+
+
+	def save_gif(self, filename=None):
+		if filename is None:
+			filename = self._get_save_filename(['gif', 'all'])
+
+		if not filename.endswith('.gif'):
+			filename += '.gif'
+
+		if filename is not None:
+			self.viewer_flags['save_directory'] = os.path.dirname(filename)
+			imageio.mimwrite(filename, self._saved_frames, extension='.gif',
+							 duration=10)
+		self._saved_frames = []

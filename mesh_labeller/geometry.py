@@ -19,13 +19,15 @@ class IcoSphere:
 
 class DrawableMesh(pyrender.Mesh):
 	def __init__(self, primitives, is_visible=True, intersector: RayMeshIntersector=None,
-				 base_colour=(0, 0, 0)):
+				 base_colour=(0, 0, 0), tex_loc=None, dilation=1, tex_size=1024):
 		self.intersector = intersector
 
 		super().__init__(primitives, is_visible=is_visible)
 
-		self.texture = Texture(1024, 1024, base_colour=base_colour, target=self)
+		self.texture = Texture(tex_size, tex_size, base_colour=base_colour, target=self, loc=tex_loc)
 		self.draw_tex()
+
+		self.dilation = dilation
 
 	def intersects(self, ray_origins, ray_directions):
 		"""Given a set of rays, return the indices of the faces, and the locations that intersect with the rays.
@@ -64,7 +66,7 @@ class DrawableMesh(pyrender.Mesh):
 
 		# Rasterize triangles to mask
 		# Seams in UV map will appear as gaps in the mask, so dilate the mask to fill them in
-		mask = rasterize_tris(triangles, size, method='per-triangle', dilation=1)
+		mask = rasterize_tris(triangles, size, method='per-triangle', dilation=self.dilation)
 		self.texture.color_mask(mask, colour)
 
 
@@ -88,8 +90,11 @@ class DrawableMesh(pyrender.Mesh):
 		self.draw_triangles(verts_2d, colour=status, fmt='UV')
 
 	@staticmethod
-	def from_trimesh(mesh, *args, base_colour=(0, 0, 0), **kwargs):
-		m = pyrender.Mesh.from_trimesh(mesh, *args, **kwargs)
+	def from_trimesh(mesh, material=None, **kwargs):
+		assert mesh.faces.shape[1] == 3, "Trimesh must be triangulated."
+		assert isinstance(mesh.visual, trimesh.visual.texture.TextureVisuals), "Trimesh failed to load UV texture mapping."
+
+		m = pyrender.Mesh.from_trimesh(mesh, material=material)
 		intersector = RayMeshIntersector(mesh)
 		return DrawableMesh(primitives=m.primitives, is_visible=m.is_visible, intersector=intersector,
-							base_colour=base_colour)
+							**kwargs)
