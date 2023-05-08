@@ -1,6 +1,6 @@
 DEFAULT_CLASS: SKIN # Default for anything not labelled
 DEFAULT_MESH_LOC: example_mesh # Path to the folder containing the meshes
-DEFAULT_FILE: monkey.obj # Default file to use (if set to None, will open a file dialog)
+DEFAULT_FILE: monkey.obj # Default file to use (if set to `null`, will open a file dialog)
 
 CLASSES: # [id] CLASS_NAME: COL [RGB/255]
   SKIN: [200, 200, 200]
@@ -10,9 +10,8 @@ CLASSES: # [id] CLASS_NAME: COL [RGB/255]
 
 
 SETTINGS:
+  AUTOSAVE: 30 # Autosave texture every x seconds (0 to disable)
   TEXTURE_SIZE: 1024 # output texture size
   DILATION: 1 # amount of pixel dilation when drawing a triangle to the texture.*
-
-
 
 # * More dilation prevents visible seams from UV unwrapping, but may lead to colour bleeding into unwanted faces.

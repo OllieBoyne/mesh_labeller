@@ -34,6 +34,7 @@ Key | Action
 `>` | Next class
 `<` | Previous class
 `CTRL`/`⌘` | While held, scroll to zoom
+`C` | Reset camera view
 `S` | Save label map as `.png`
 `O` | Open new `.obj` file
 `Z` | Undo last paint

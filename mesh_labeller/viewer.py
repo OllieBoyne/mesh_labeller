@@ -12,6 +12,7 @@ from tkinter import Tk, filedialog as filedialog
 import imageio
 
 import pyglet
+from pyglet import clock
 is_ctrl = lambda symbol: symbol == pyglet.window.key.LCTRL or symbol == pyglet.window.key.RCTRL
 is_command = lambda symbol: symbol == pyglet.window.key.LCOMMAND or symbol == pyglet.window.key.RCOMMAND
 
@@ -73,6 +74,10 @@ class Viewer(pyrender.Viewer):
 
 		self.H, self.W = viewport_size
 
+		# schedule autosave
+		self.autosave_interval = cfg['SETTINGS']['AUTOSAVE']
+		if self.autosave_interval > 0:
+			pyglet.clock.get_default().schedule_interval(self.save_texture, self.autosave_interval)
 
 		super().__init__(scene, *args, **kwargs, run_in_thread=False,
 						 use_raymond_lighting=True,
@@ -196,11 +201,11 @@ class Viewer(pyrender.Viewer):
 		elif symbol == pyglet.window.key.P:
 			self.mouse_mode = 'mouse-pan'
 
+		elif symbol == pyglet.window.key.C:
+			self.reset_camera()
+
 		elif symbol == pyglet.window.key.S:
-			# Save texture as 'label_tex.png' in same folder as obj
-			loc = obj_loc_to_tex_loc(self.obj_loc)
-			self.mesh.texture.save(loc)
-			print(f"Saved texture to {loc}")
+			self.save_texture()
 
 		elif symbol == pyglet.window.key.O:
 			self.load_mesh()
@@ -338,3 +343,14 @@ class Viewer(pyrender.Viewer):
 			imageio.mimwrite(filename, self._saved_frames, extension='.gif',
 							 duration=10)
 		self._saved_frames = []
+
+	def save_texture(self, dt=None):
+		"""Save texture as 'label_tex.png' in same folder as obj"""
+		loc = obj_loc_to_tex_loc(self.obj_loc)
+		self.mesh.texture.save(loc)
+
+		if dt is None:
+			print(f"Saved texture to {loc}")
+
+	def reset_camera(self):
+		self._trackball._n_pose = self._default_camera_pose
